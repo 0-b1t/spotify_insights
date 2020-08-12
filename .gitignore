@@ -1,3 +1,6 @@
+#output of data viz
+/imgs/*
+
 #giant data set
 spotify_dataset.csv
 
