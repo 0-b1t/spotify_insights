@@ -1,3 +1,7 @@
+#Don't illegally put up music
+/data/wknd_w.wav
+/data/let_it_be.mp3
+
 #output of data viz
 /imgs/*
 
