@@ -1,7 +1,13 @@
-import processing.sound.*;
+//import processing.sound.*;
 
-SoundFile song;
-String song_path = "../data/wknd_w.wav";
+import ddf.minim.*;
+
+Minim minim;
+AudioPlayer song;
+
+//SoundFile song;
+String song_path = "../data/let_it_be.mp3";
+String features_path = "../data/let_it_be_audio_features.json";
 
 int ms;
 float curr_time;
@@ -21,8 +27,9 @@ float song_duration;
 
 float duration_limit = 60.0;
 
-int pitch_line_wgt = 5;
+int pitch_line_wgt = 10;
 int vert_div = 14 * pitch_line_wgt;
+int hor_div = 5;
 
 float tatum_line_wgt = 0.5;
 float beat_line_wgt = 1.5;
@@ -50,10 +57,13 @@ void setup() {
 	bar_col = color(0.0, 0.0, 0.0 ,1.0);
 	section_col = color(120, 1.0, 1.0, 1.0);
 
+	rectMode(CORNERS);
+	strokeCap(SQUARE);
+
 	total_pixels = width*height;
 
 
-	json = loadJSONObject("../data/blinding_lights_audio_features.json");
+	json = loadJSONObject(features_path);
 
 	JSONObject track_info = json.getJSONObject("track");
 	
@@ -63,10 +73,7 @@ void setup() {
 	bars = json.getJSONArray("bars");
 	sections = json.getJSONArray("sections");
 	segments = json.getJSONArray("segments");
-	//JSONObject tatum0 = tatums.getJSONObject(tatums.size()-1);
 
-	// print(tatums.size());
-	//println(tatum0);
 	println("song_duration: "+song_duration);
 
 	subdivisionLines(tatums, tatum_line_wgt, tatum_col);
@@ -74,11 +81,56 @@ void setup() {
 	subdivisionLines(bars, bar_line_wgt, bar_col);
 	subdivisionLines(sections, section_line_wgt, section_col);
 
-	strokeWeight(pitch_line_wgt);
+	//drawSegments(segments);
 
-	for (int i = 0; i < segments.size()-1; ++i) {
-		JSONObject o1 = segments.getJSONObject(i);
-		JSONObject o2 = segments.getJSONObject(i+1);
+
+	minim = new Minim(this);
+	song = minim.loadFile(song_path);
+	println(float(song.length())/1000.0);
+	song.play();
+
+}
+
+void draw() {
+
+	time_pos = map(float(song.position())/1000.0, 0.0, duration_limit, 0, total_pixels);
+
+
+	point_x = ((time_pos/hor_div)%width);
+	point_y = (time_pos/width) - ((time_pos/width)%vert_div);
+
+	stroke(240, 1.0, 1.0, 0.05);
+	strokeWeight(3);
+	line(point_x, point_y, point_x, point_y+(12*pitch_line_wgt));
+
+
+}
+
+void subdivisionLines(JSONArray subdiv, float line_wgt, color line_col){
+	stroke(line_col);
+	strokeWeight(line_wgt);
+
+	for (int i = 0; i < subdiv.size(); ++i) {
+		JSONObject o = subdiv.getJSONObject(i);
+
+		float pos_time = o.getFloat("start");
+
+		point_pos = map(pos_time, 0.0, duration_limit, 0, total_pixels);
+		point_x = ((point_pos/vert_div)%width);
+		point_y = ((point_pos)/width) - ((point_pos/width)%vert_div);
+
+		line(point_x, point_y, point_x, point_y+(12*pitch_line_wgt));
+
+		if (pos_time>duration_limit){
+			break;
+		}		
+	}
+}
+
+void drawSegments(JSONArray segs){
+	for (int i = 0; i < segs.size()-1; ++i) {
+		JSONObject o1 = segs.getJSONObject(i);
+		JSONObject o2 = segs.getJSONObject(i+1);
 
 		JSONArray pitches = o1.getJSONArray("pitches");
 
@@ -91,100 +143,26 @@ void setup() {
 		float point_x2 = ((point_pos2/vert_div)%width);
 		float point_y2 = (point_pos2/width) - ((point_pos2/width)%vert_div);
 
+		float confidence_alpha = map(o1.getFloat("confidence"), 0.0, 1.0, 0.5, 0.0);
+
+		fill(0, 1.0, 1.0, confidence_alpha); //red
+		noStroke();
+
+		rect(point_x1, point_y1, point_x2, point_y2+12*pitch_line_wgt); //confidence of the segment
+
 		for (int j = 0; j < pitches.size(); ++j) {
 			float pitch = pitches.getFloat(j);
 			float yoff = (11-j)*pitch_line_wgt;
-			stroke(0.0, 0.0, 0.0, pitch);
+			noStroke();
+			fill(0.0, 0.0, 0.0, pitch);
 			if (point_y2==point_y1) {
-				line(point_x1, point_y1+yoff, point_x2, point_y2+yoff);
+				rect(point_x1, point_y1+yoff, point_x2, point_y2+yoff+pitch_line_wgt);
 			}
 			else if (point_y2>point_y1) {
-				line(point_x1, point_y1+yoff, width, point_y1+yoff);
-				line(0, point_y2+yoff, point_x2, point_y2+yoff);
+				rect(point_x1, point_y1+yoff, width, point_y1+yoff+pitch_line_wgt);
+				rect(0, point_y2+yoff, point_x2, point_y2+yoff+pitch_line_wgt);
 			}
 			
 		}
 	}
-
-
-
-	song = new SoundFile(this, song_path);
-	song.amp(0.5);
-	song.play();
-	//song.rate(song.duration()/song_duration);
-	println("File Duration= " + song.duration() + " seconds");
-
-}
-
-void draw() {
-	if (frameCount == 1) {
-		init_time = millis();
-		println("playing: "+song.isPlaying());
-	}
-	ms = millis();
-	curr_time = float(ms-init_time)/1000.0;
-
-	time_pos = map(curr_time, 0.0, duration_limit, 0, total_pixels);
-
-
-	point_x = ((time_pos/vert_div)%width);
-	point_y = (time_pos/width) - ((time_pos/width)%vert_div);
-
-	stroke(0, 1.0, 1.0, 0.2);
-	strokeWeight(3);
-	line(point_x, point_y, point_x, point_y+(12*pitch_line_wgt));
-	//time
-	//background(0, 0.0, 1.0, 1.0);
-	//strokeWeight(tatum_line_wgt);
-
-
-
-	// for (int i = 0; i < tatums.size(); ++i) {
-	// 	JSONObject t = tatums.getJSONObject(i);
-	// 	float pos_time = t.getFloat("start");
-	// 	//print(pos_time);
-	// 	// float time_ratio = map(pos_time, 0.0, song_duration, 0.0, 1.0 );
-
-	// 	point_pos = map(pos_time, 0.0, duration_limit, 0, total_pixels);
-	// 	point_x = ((point_pos/vert_div)%width);
-	// 	point_y = (point_pos/width) - ((point_pos/width)%vert_div);
-
-	// 	//stroke(map(pos_time, 0, song_duration, 0, 255*10)%255);
-	// 	stroke(0.0, 0.0, 0.1 ,1.0 );
-	// 	line(point_x, point_y, point_x, point_y+(12*pitch_line_wgt));
-	// 	//point(point_x, point_y);
-
-	// 	if (pos_time>duration_limit){
-	// 		break;
-	// 	}
-	// }
-
-
-}
-
-void subdivisionLines(JSONArray subdiv, float line_wgt, color line_col){
-	stroke(line_col);
-	strokeWeight(line_wgt);
-
-	for (int i = 0; i < subdiv.size(); ++i) {
-		JSONObject o = subdiv.getJSONObject(i);
-		float pos_time = o.getFloat("start");
-		//print(pos_time);
-		// float time_ratio = map(pos_time, 0.0, song_duration, 0.0, 1.0 );
-
-		point_pos = map(pos_time, 0.0, duration_limit, 0, total_pixels);
-		point_x = ((point_pos/vert_div)%width);
-		point_y = (point_pos/width) - ((point_pos/width)%vert_div);
-
-		//stroke(map(pos_time, 0, song_duration, 0, 255*10)%255);
-		line(point_x, point_y, point_x, point_y+(12*pitch_line_wgt));
-		//point(point_x, point_y);
-
-		if (pos_time>duration_limit){
-			break;
-		}
-
-		
-	}
-
 }
